@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NHIỆM VỤ GIẢI CỨU MẠNG INTERNET | Bài 4: Giao thức mạng</title>
+  <style>
+    /* 01. CẤU HÌNH VÀ CSS CHUNG */
+    :root {
+      --bg-dark: #0f111a;
+      --panel-bg: rgba(20, 24, 40, 0.9);
+      --primary: #00ffcc;
+      --secondary: #ff00ff;
+      --accent: #facc15;
+      --success: #10b981;
+      --danger: #ef4444;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --font-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-dark); color: var(--text-main);
+      font-family: var(--font-main); min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; padding: 15px;
+      /* ĐẢM BẢO CHUỘT HOẠT ĐỘNG TỰ DO */
+      cursor: auto; 
+    }
+
+    /* Background an toàn không cản thao tác */
+    .cyber-bg {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+      background: radial-gradient(circle at 10% 20%, rgba(0, 255, 204, 0.05), transparent 40%),
+                  radial-gradient(circle at 90% 80%, rgba(255, 0, 255, 0.05), transparent 40%);
+      pointer-events: none; /* Cực kỳ quan trọng để không chặn chuột */
+    }
+
+    /* Màn hình (Screens) */
+    .screen { display: none; width: 100%; max-width: 800px; animation: fadeIn 0.4s ease-out; }
+    .screen.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Khung giao diện (Panel) */
+    .glass-panel {
+      background: var(--panel-bg); border: 1px solid rgba(0, 255, 204, 0.2);
+      border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    h1, h2, h3 { color: var(--primary); margin-bottom: 15px; text-transform: uppercase; }
+    .text-center { text-align: center; }
+
+    /* Input & Button */
+    input[type="text"] {
+      width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 6px;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--text-muted);
+      color: #fff; font-size: 1rem;
+    }
+    input[type="text"]:focus { outline: none; border-color: var(--primary); }
+
+    button {
+      background: rgba(0, 255, 204, 0.1); color: var(--primary);
+      border: 1px solid var(--primary); padding: 10px 20px; border-radius: 6px;
+      font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 1rem;
+    }
+    button:hover:not(:disabled) { background: var(--primary); color: #000; }
+    button:disabled { border-color: var(--text-muted); color: var(--text-muted); cursor: not-allowed; background: transparent; }
+    .btn-solid { background: var(--primary); color: #000; }
+    .btn-solid:hover:not(:disabled) { background: #00ccaa; box-shadow: 0 0 15px var(--primary); }
+
+    /* HUD */
+    .hud { display: flex; justify-content: space-between; background: rgba(0,0,0,0.5); padding: 10px 15px; border-radius: 8px; margin-bottom: 20px; font-size: 0.9rem; border: 1px solid rgba(255,255,255,0.1); flex-wrap: wrap; gap: 10px; }
+    .timer { font-size: 1.2rem; font-weight: bold; color: var(--primary); font-family: monospace; }
+    .timer.warning { color: var(--accent); }
+    .timer.danger { color: var(--danger); }
+
+    /* Map Nodes */
+    .map-grid { display: flex; justify-content: space-around; margin: 30px 0; flex-wrap: wrap; gap: 15px; }
+    .node { width: 120px; height: 120px; border-radius: 50%; border: 2px dashed var(--text-muted); display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.5); cursor: not-allowed; transition: 0.3s; text-align: center; }
+    .node.unlocked { border-color: var(--primary); border-style: solid; cursor: pointer; box-shadow: 0 0 15px rgba(0,255,204,0.2); }
+    .node.unlocked:hover { background: rgba(0,255,204,0.1); }
+    .node.completed { border-color: var(--success); color: var(--success); }
+
+    /* Lựa chọn trắc nghiệm */
+    .options-grid { display: grid; gap: 12px; margin-top: 20px; }
+    .opt-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 15px; line-height: 1.4; }
+    .opt-card:hover:not(.disabled) { border-color: var(--primary); background: rgba(0,255,204,0.05); }
+    .opt-card.selected { border-color: var(--secondary); background: rgba(255,0,255,0.1); }
+    .opt-card.correct { border-color: var(--success); background: rgba(16,185,129,0.1); }
+    .opt-card.wrong { border-color: var(--danger); background: rgba(239,68,68,0.1); }
+    .opt-card.disabled { cursor: not-allowed; }
+    .opt-label { background: rgba(255,255,255,0.1); padding: 5px 10px; border-radius: 4px; font-weight: bold; }
+
+    /* Hint & Feedback */
+    .hint-box { margin-top: 15px; padding: 12px; border-left: 3px solid var(--accent); background: rgba(250, 204, 21, 0.1); display: none; font-size: 0.9rem; }
+    .feedback-box { margin-top: 15px; padding: 15px; border-radius: 8px; display: none; font-size: 0.95rem; }
+    .feedback-box.correct { background: rgba(16, 185, 129, 0.1); border: 1px solid var(--success); }
+    .feedback-box.incorrect { background: rgba(239, 68, 68, 0.1); border: 1px solid var(--danger); }
+
+    /* Mật mã cuộc sống */
+    .clue-box { background: rgba(255,255,255,0.05); border: 1px dashed var(--text-muted); padding: 15px; border-radius: 8px; margin-bottom: 10px; cursor: pointer; transition: 0.2s; }
+    .clue-box:hover { border-color: var(--primary); }
+    .clue-box.found { border-color: var(--success); border-style: solid; background: rgba(16,185,129,0.1); cursor: default; }
+    
+    .schema-slot { border: 2px dashed var(--text-muted); padding: 10px; text-align: center; border-radius: 6px; min-height: 40px; cursor: pointer; }
+    .schema-slot.filled { border-color: var(--primary); border-style: solid; background: rgba(0,255,204,0.1); }
+    .schema-item { display: inline-block; padding: 8px 12px; background: rgba(255,0,255,0.2); border: 1px solid var(--secondary); border-radius: 6px; cursor: pointer; margin: 5px; }
+
+    /* Utilities */
+    .flex-between { display: flex; justify-content: space-between; align-items: center; }
+    .mt-15 { margin-top: 15px; }
+    
+    @media (max-width: 600px) {
+      .hud { flex-direction: column; align-items: flex-start; }
+      .map-grid { flex-direction: column; align-items: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="cyber-bg"></div>
+
+  <!-- HEADER -->
+  <div style="width: 100%; max-width: 800px; display: flex; justify-content: space-between; align-items: center; padding: 10px 0;">
+    <div style="font-size: 0.85rem; color: var(--text-muted);">Tác giả: <strong>MRS LINH</strong></div>
+    <button id="btnToggleSound" onclick="toggleSound()" style="padding: 5px 10px; font-size: 0.8rem;">🔊 Bật Âm</button>
+  </div>
+
+  <!-- MÀN HÌNH CHÀO MỪNG -->
+  <div id="screen-welcome" class="screen active">
+    <div class="glass-panel text-center">
+      <h1>NHIỆM VỤ GIẢI CỨU MẠNG INTERNET</h1>
+      <h3 style="color: var(--text-main);">Hành trình khám phá Bài 4 – Giao thức mạng</h3>
+      
+      <div style="text-align: left; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 0.95rem; line-height: 1.5;">
+        <p><strong>Tình huống:</strong> Trước giờ thi trực tuyến, mạng nhà trường gặp sự cố. Các máy không gửi nhận được dữ liệu, gói tin lạc đường và lộn xộn. Đây là bối cảnh mô phỏng học tập để giúp các em ôn lại kiến thức.</p>
+        <p style="margin-top:10px;"><strong>Nhiệm vụ:</strong> Mở SGK Tin học 12 (Trang 21-25). Khám phá 3 trạm để sửa lỗi giao thức, phục hồi mạng và giải mã thông điệp cuộc sống cuối cùng. Thời gian: 30 phút.</p>
+      </div>
+
+      <form id="startForm" onsubmit="startGame(event)">
+        <input type="text" id="inpName" placeholder="Họ và tên học sinh (*)" required>
+        <input type="text" id="inpClass" placeholder="Lớp (*)" required>
+        <button type="submit" class="btn-solid" style="width: 100%; font-size: 1.1rem; padding: 15px;">NHẬN NHIỆM VỤ (Bắt đầu tính giờ)</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- BẢN ĐỒ NHIỆM VỤ -->
+  <div id="screen-map" class="screen">
+    <div class="glass-panel">
+      <div class="hud">
+        <div>Kỹ sư: <strong id="hudName" style="color:var(--primary);"></strong></div>
+        <div>Điểm: <strong id="hudScore" style="color:var(--accent);">0</strong>/100</div>
+        <div>⏱ <span id="mainTimer" class="timer">30:00</span></div>
+      </div>
+      
+      <h2 class="text-center">BẢN ĐỒ CHIẾN DỊCH</h2>
+      <p class="text-center" style="font-size: 0.9rem; color: var(--text-muted);">Đạt tối thiểu 7/10 câu (và ít nhất 1 câu Vận dụng) để mở khóa trạm tiếp theo.</p>
+
+      <div class="map-grid">
+        <div id="node-1" class="node unlocked" onclick="enterStation(1)">
+          <div style="font-size: 2rem;">🌐</div>
+          <strong>TRẠM 1</strong>
+          <small>Giải mã ngôn ngữ</small>
+        </div>
+        <div id="node-2" class="node" onclick="enterStation(2)">
+          <div style="font-size: 2rem;">🛣️</div>
+          <strong>TRẠM 2</strong>
+          <small>Tìm đường gói tin</small>
+        </div>
+        <div id="node-3" class="node" onclick="enterStation(3)">
+          <div style="font-size: 2rem;">📦</div>
+          <strong>TRẠM 3</strong>
+          <small>Khôi phục dữ liệu</small>
+        </div>
+        <div id="node-4" class="node" onclick="enterFinal()">
+          <div style="font-size: 2rem;">🔐</div>
+          <strong>TRẠM CUỐI</strong>
+          <small>Két sắt cuộc sống</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRẠM CÂU HỎI -->
+  <div id="screen-question" class="screen">
+    <div class="glass-panel">
+      <div class="flex-between" style="margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
+        <div><strong style="color:var(--primary);" id="qStationTitle">TRẠM 1</strong> | Câu <span id="qIndex">1</span>/10</div>
+        <div>⏱ <span id="qTimer" class="timer" style="font-size:1rem;">30:00</span></div>
+      </div>
+
+      <div class="flex-between" style="font-size: 0.85rem; margin-bottom: 15px;">
+        <span id="qLevel" style="background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 4px;">Mức độ</span>
+        <span style="color:var(--accent);">Điểm tối đa hiện tại: <strong id="qMaxPt"></strong>đ</span>
+      </div>
+
+      <h3 id="qText" style="line-height: 1.4; color: #fff;">Nội dung câu hỏi...</h3>
+      <div id="qOptions" class="options-grid"></div>
+
+      <!-- Ping Task (Chỉ hiện ở Trạm 3 Vận dụng) -->
+      <div id="pingTaskBox" style="display:none; background:rgba(0,0,0,0.4); padding:15px; border-radius:8px; margin-top:15px; border:1px dashed var(--text-muted);">
+        <p style="margin-bottom:10px;"><strong>Nhiệm vụ Thực hành Ping:</strong> Em hãy mở CMD, gõ lệnh <code>ping google.com</code>. Trình duyệt không thể chạy lệnh thật, vui lòng tự chụp ảnh màn hình nộp cho GV hoặc tick vào ô dưới đây để xác nhận em đã làm.</p>
+        <label><input type="checkbox" id="chkPing" onchange="enablePingConfirm()"> Em đã thực hành lệnh ping và đọc được kết quả phản hồi.</label>
+      </div>
+
+      <div id="hintBox" class="hint-box"></div>
+      
+      <div id="feedbackBox" class="feedback-box">
+        <h4 id="fbTitle"></h4>
+        <p id="fbText" style="margin-top:5px; line-height: 1.5;"></p>
+      </div>
+
+      <div class="flex-between mt-15">
+        <button id="btnHint" onclick="useHint()">CẦN TRỢ GIÚP?</button>
+        <button id="btnConfirm" class="btn-solid" onclick="confirmAnswer()" disabled>XÁC NHẬN</button>
+        <button id="btnNext" class="btn-solid" style="display:none;" onclick="nextQuestion()">TIẾP TỤC</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRẠM CUỐI: KÉT SẮT GIAO THỨC CUỘC SỐNG -->
+  <div id="screen-final" class="screen">
+    <div class="glass-panel">
+      <h2 class="text-center">KÉT SẮT GIAO THỨC CUỘC SỐNG</h2>
+      <p class="text-center" style="margin-bottom:20px; color:var(--text-muted);">Bạn đã cứu được mạng máy tính. Nhưng liệu bạn có tìm ra quy tắc giúp con người thật sự kết nối với nhau?</p>
+      
+      <div id="storyPhase">
+        <div style="background:rgba(0,0,0,0.3); padding:15px; border-radius:8px; margin-bottom:15px; font-style:italic;">
+          "Trong lớp 12A, nhóm 4 bạn đang làm dự án trực tuyến. Khi họp, một bạn liên tục ngắt lời, một bạn tự thay đổi sản phẩm chung, một bạn chặn người khác phát biểu. Rất may, bạn lớp trưởng đã bình tĩnh đề nghị mọi người lần lượt trình bày, lắng nghe và thống nhất."
+        </div>
+        <p><strong>Nhiệm vụ:</strong> Bấm vào các hành vi dưới đây để thu thập bằng chứng.</p>
+        <div class="options-grid" id="clueContainer">
+          <div class="clue-box" onclick="collectClue(0, this)">1. Hành động liên tục ngắt lời</div>
+          <div class="clue-box" onclick="collectClue(1, this)">2. Tự ý thay đổi sản phẩm chung</div>
+          <div class="clue-box" onclick="collectClue(2, this)">3. Ngăn người khác phát biểu</div>
+          <div class="clue-box" onclick="collectClue(3, this)">4. Đề nghị lần lượt trình bày và lắng nghe</div>
+        </div>
+        <div id="clueFb" style="margin-top:10px; color:var(--accent); font-weight:bold;"></div>
+      </div>
+
+      <div id="safePhase" style="display:none; text-align:center; margin-top:20px;">
+        <h3 style="color:var(--secondary);">🔐 KÉT SẮT ĐÃ BẬT</h3>
+        <p style="margin-bottom:15px;">Từ những bằng chứng trên, hãy nhập từ khóa (2 tiếng) thể hiện nguyên tắc nền tảng giúp con người ứng xử văn minh dù khác biệt ý kiến.</p>
+        <input type="text" id="inpSafeKeyword" placeholder="Nhập từ khóa (Ví dụ: HOP TAC)...">
+        <div id="safeFb" style="color:var(--danger); margin-bottom:15px; font-weight:bold;"></div>
+        <button class="btn-solid" onclick="checkSafeKeyword()">MỞ KÉT SẮT</button>
+      </div>
+
+      <div id="schemaPhase" style="display:none; margin-top:20px;">
+        <h3 style="color:var(--success); text-align:center;">KÉT MỞ THÀNH CÔNG!</h3>
+        <p style="margin-bottom:15px;">Em hãy ghép các mảnh khái niệm để tạo mối liên hệ giữa Mạng máy tính và Cuộc sống.</p>
+        
+        <div style="background:rgba(0,0,0,0.3); padding:15px; border-radius:8px; margin-bottom:15px;">
+          <p><strong>Mạng Máy Tính:</strong> Thiết bị -> <span class="schema-slot" id="slot0" onclick="selectSlot(0)">[Chọn thẻ]</span> -> Quy tắc trao đổi -> Kết nối.</p>
+          <p style="margin-top:10px;"><strong>Cuộc Sống:</strong> Con người -> <span class="schema-slot" id="slot1" onclick="selectSlot(1)">[Chọn thẻ]</span> -> Lắng nghe -> Hợp tác.</p>
+        </div>
+        
+        <div id="schemaCards" style="text-align:center; margin-bottom:15px;">
+          <span class="schema-item" id="card0" onclick="selectCard(0, 'Giao thức')">Giao thức</span>
+          <span class="schema-item" id="card1" onclick="selectCard(1, 'Tôn trọng')">Tôn trọng</span>
+          <span class="schema-item" id="card2" onclick="selectCard(2, 'Thiết bị mạng')">Thiết bị mạng</span>
+        </div>
+        <div id="schemaFb" style="text-align:center; font-weight:bold; margin-bottom:15px;">Bấm chọn thẻ chữ màu tím, sau đó bấm vào ô trống để đặt.</div>
+        <div style="text-align:center;"><button class="btn-solid" onclick="checkSchema()">KIỂM TRA SƠ ĐỒ</button></div>
+      </div>
+
+      <div id="finalMessagePhase" style="display:none; text-align:center; margin-top:20px;">
+        <div style="padding:20px; background:rgba(16,185,129,0.1); border:1px solid var(--success); border-radius:8px;">
+          <h3 style="color:var(--success);">✨ KẾT NỐI THÀNH CÔNG ✨</h3>
+          <p style="font-size:1.05rem; line-height:1.6; margin-bottom:15px;">
+            Máy tính muốn kết nối cần có <strong>GIAO THỨC</strong>.<br>
+            Con người muốn thấu hiểu cần biết <strong>TÔN TRỌNG</strong> và <strong>LẮNG NGHE</strong>.<br><br>
+            Quy tắc chung giúp thiết bị truyền dữ liệu. Sự tôn trọng và chuẩn mực đạo đức giúp chúng ta sống văn minh.<br>
+            <em>Hãy kết nối bằng tri thức, thấu hiểu bằng trái tim và hành động bằng trách nhiệm!</em>
+          </p>
+          <button class="btn-solid" onclick="endGame()">HOÀN THÀNH CHIẾN DỊCH</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KẾT QUẢ -->
+  <div id="screen-result" class="screen">
+    <div class="glass-panel text-center">
+      <h1 class="text-primary">BÁO CÁO NHIỆM VỤ</h1>
+      <h2 id="resName" style="color:#fff;"></h2>
+      
+      <div style="background:rgba(0,0,0,0.4); padding:15px; border-radius:8px; margin:20px 0; text-align:left;">
+        <p><strong>Trạng thái:</strong> <span id="resStatus" style="color:var(--primary);"></span></p>
+        <p><strong>Thời gian:</strong> <span id="resTime"></span></p>
+        <hr style="border-color:rgba(255,255,255,0.1); margin:10px 0;">
+        <p>Điểm Trạm 1: <span id="rT1"></span>/25 | Trạm 2: <span id="rT2"></span>/25 | Trạm 3: <span id="rT3"></span>/25</p>
+        <p>Điểm Két sắt: <span id="rFinal"></span>/20 | Thưởng thời gian: <span id="rBonus" style="color:var(--success);"></span>/5</p>
+        <h2 style="text-align:center; color:var(--accent); margin-top:15px;">TỔNG ĐIỂM: <span id="rTotal"></span> / 100</h2>
+        <p style="font-size:0.85rem; color:var(--text-muted); text-align:center;">Tự làm đúng: <span id="rNoHint"></span> | Dùng gợi ý: <span id="rHint"></span> | Làm lại: <span id="rRetry"></span></p>
+      </div>
+
+      <p id="resComment" style="font-style:italic; margin-bottom:15px; color:var(--pastel-lavender);"></p>
+      <div id="syncStatus" style="font-size:0.85rem; margin-bottom:15px;">Đang đồng bộ điểm...</div>
+
+      <div style="display:flex; justify-content:center; gap:10px;">
+        <button id="btnReview" class="btn-solid" style="display:none;" onclick="startReview()">ÔN LẠI CÂU SAI</button>
+        <button class="btn-solid" onclick="location.reload()">CHƠI LẠI TỪ ĐẦU</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ==================================================
+       01. CẤU HÌNH & 02. NGÂN HÀNG CÂU HỎI (ĐÃ CÂN BẰNG ĐỘ DÀI)
+       ================================================== */
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyxK8WExkoW1rBQQz0tXwdG5wlhP8Eug4hIgCvnOQxKvcZ_OQIebus8MUDla8YANv0Oeg/exec"; // Thay URL web app của bạn vào đây
+    const TIME_LIMIT = 30 * 60 * 1000;
+    
+    // Quy tắc điểm: NB=2, TH=3, VD=3 hoặc 2 để trạm = 25đ.
+    // 4NB(8), 3TH(9), 3VD(8) = 25đ.
+    const PT = { 'NB': 2, 'TH': 3, 'VD1': 3, 'VD2': 2 };
+
+    const DB = {
+      t1: [ // Trạm 1: Ngôn ngữ chung của máy tính (SGK 21-22)
+        { id:'1_1', lvl:'NB', type:'NB', q:'Giao thức mạng (network protocol) được hiểu là gì?', opts:['Là tập hợp các quy định về cách giao tiếp để truyền dữ liệu.', 'Là các thiết bị phần cứng để kết nối máy tính trong mạng.', 'Là hệ điều hành được cài đặt trên máy chủ Internet.', 'Là phần mềm bảo mật chống virus trên đường truyền mạng.'], ans:0, h1:'Xem SGK trang 21, định nghĩa giao thức.', h2:'Nó giống như "ngôn ngữ chung".' },
+        { id:'1_2', lvl:'NB', type:'NB', q:'Trong SGK, giao thức nào quy định cách thức đóng gói gửi thư điện tử?', opts:['Giao thức mạng POP3.', 'Giao thức mạng IMAP.', 'Giao thức mạng SMTP.', 'Giao thức mạng HTTP.'], ans:2, h1:'Xem SGK trang 21, đoạn cuối.', h2:'Simple Mail Transfer Protocol.' },
+        { id:'1_3', lvl:'NB', type:'NB', q:'Giao thức nào dưới đây dùng để người nhận tải thư điện tử về máy?', opts:['Giao thức mạng IPv4.', 'Giao thức mạng POP3.', 'Giao thức mạng DHCP.', 'Giao thức mạng WLAN.'], ans:1, h1:'Xem SGK trang 21, đoạn cuối.', h2:'Thường xuất hiện cùng IMAP.' },
+        { id:'1_4', lvl:'NB', type:'NB', q:'Giao thức truyền dữ liệu phổ biến nhất trong mạng cục bộ là gì?', opts:['Giao thức Internet.', 'Giao thức Intranet.', 'Giao thức Extranet.', 'Giao thức Ethernet.'], ans:3, h1:'Xem SGK trang 22, ví dụ trên cùng.', h2:'Bắt đầu bằng chữ E.' },
+        { id:'1_5', lvl:'TH', type:'TH', q:'Mục đích chính của các quy định trong giao thức mạng là gì?', opts:['Tăng tốc độ xử lý phần cứng của thiết bị nhận.', 'Giúp định dạng và xử lý dữ liệu để truyền tin cậy.', 'Nén tệp tin để tiết kiệm dung lượng bộ nhớ đĩa.', 'Chuyển văn bản thành mã nhị phân không thể đọc.'], ans:1, h1:'Xem SGK trang 21, định nghĩa giao thức.', h2:'Để dữ liệu đến nơi đúng và không lỗi.' },
+        { id:'1_6', lvl:'TH', type:'TH', q:'Trong mạng Ethernet, quy định về mã kiểm tra nhằm giải quyết việc gì?', opts:['Sắp xếp mức độ ưu tiên của thiết bị nhận.', 'Phát hiện lỗi truyền và yêu cầu gửi lại dữ liệu.', 'Cấp phát địa chỉ IP tự động cho máy tính.', 'Bảo vệ dữ liệu không bị hacker đánh cắp.'], ans:1, h1:'Xem SGK trang 22.', h2:'Dùng để kiểm tra sự nguyên vẹn của gói tin.' },
+        { id:'1_7', lvl:'TH', type:'TH', q:'Vì sao Ethernet cấm truyền một lượng tin dài không giới hạn trong một lần?', opts:['Băng thông cáp mạng bị giới hạn ở mức rất thấp.', 'Có thể làm quá tải máy nhận và cản trở truyền khác.', 'Nhà mạng sẽ thu phí rất cao nếu truyền quá nhiều.', 'Máy tính gửi sẽ bị quá nhiệt và sập nguồn điện.'], ans:1, h1:'Xem SGK trang 22.', h2:'Phải nhường đường cho máy khác cùng truyền.' },
+        { id:'1_8', lvl:'VD', type:'VD1', q:'Máy A gửi email cho máy B, máy B nhận thành ký tự lỗi. Xét về giao thức, lỗi do đâu?', opts:['Màn hình máy B không hỗ trợ font chữ tiếng Việt.', 'Phần mềm hai máy không chung quy tắc xử lý dữ liệu.', 'Máy tính A và máy tính B dùng hãng phần cứng khác.', 'Cáp mạng nối giữa hai máy bị đứt một phần lõi đồng.'], ans:1, h1:'Xem SGK trang 21.', h2:'Vì không chung "ngôn ngữ".' },
+        { id:'1_9', lvl:'VD', type:'VD1', q:'Trong mạng LAN, quy định nào giúp dữ liệu tìm đến đúng máy đích mà không bị nhầm?', opts:['Dựa vào tốc độ xung nhịp của CPU máy tính.', 'Dựa vào địa chỉ MAC của các thiết bị phần cứng.', 'Dựa vào độ phân giải màn hình của thiết bị nhận.', 'Dựa vào hệ điều hành mà máy tính đang sử dụng.'], ans:1, h1:'Xem SGK trang 22, quy định về địa chỉ.', h2:'Địa chỉ vật lý duy nhất của card mạng.' },
+        { id:'1_10', lvl:'VD', type:'VD2', q:'Phần mềm gửi thư thực hiện "đóng gói dữ liệu" mang ý nghĩa thực tế nào?', opts:['Tập hợp nội dung và địa chỉ theo định dạng chặt chẽ.', 'Nén thư điện tử thành tệp ZIP để giảm dung lượng.', 'Đặt mật khẩu mã hóa để chống tin tặc trên mạng.', 'Chuyển tín hiệu chữ viết thành tín hiệu âm thanh.'], ans:0, h1:'Xem SGK trang 21.', h2:'Giống như ghi phong bì thư bưu điện.' }
+      ],
+      t2: [ // Trạm 2: Truy tìm đường đi gói tin (SGK 22-24)
+        { id:'2_1', lvl:'NB', type:'NB', q:'Hai nội dung chính của giao thức IP là gì?', opts:['Quản lý lỗi và kiểm tra tính năng bảo mật.', 'Cấp phát cổng và mã hóa tín hiệu truyền.', 'Cách đánh địa chỉ và định tuyến dữ liệu.', 'Nén tệp tin và thiết lập tốc độ mạng.'], ans:2, h1:'Xem SGK trang 23, phần a.', h2:'Gắn nhãn và tìm đường.' },
+        { id:'2_2', lvl:'NB', type:'NB', q:'Địa chỉ IPv4 bao gồm bao nhiêu byte dữ liệu?', opts:['Gồm 2 byte.', 'Gồm 4 byte.', 'Gồm 6 byte.', 'Gồm 8 byte.'], ans:1, h1:'Xem SGK trang 23, mục Địa chỉ IP.', h2:'Ví dụ 192.168.1.1 có 4 nhóm.' },
+        { id:'2_3', lvl:'NB', type:'NB', q:'Địa chỉ MAC khác biệt cơ bản với địa chỉ IP ở đặc điểm nào?', opts:['Là địa chỉ 6 byte gắn với phần cứng cố định.', 'Là địa chỉ 4 byte có thể thay đổi linh hoạt.', 'Là địa chỉ văn bản để đặt tên cho trang web.', 'Là mã số ảo sinh ra ngẫu nhiên khi bật máy.'], ans:0, h1:'Xem SGK trang 23.', h2:'MAC là địa chỉ vật lý, không đổi.' },
+        { id:'2_4', lvl:'NB', type:'NB', q:'Thiết bị nào đóng vai trò chuyển mạch, hướng dẫn dữ liệu tìm đường tới mạng LAN nhận?', opts:['Thiết bị cáp quang.', 'Thiết bị Switch.', 'Thiết bị Router.', 'Thiết bị Modem.'], ans:2, h1:'Xem SGK trang 23, Định tuyến.', h2:'Thiết bị liên kết các mạng khác nhau.' },
+        { id:'2_5', lvl:'TH', type:'TH', q:'Sự khác biệt về chức năng khi cấp phát giữa MAC và IP là gì?', opts:['MAC dùng cho mạng Wi-Fi, IP dùng cho cáp đồng.', 'MAC gắn cứng vào linh kiện, IP gán cho phần mềm.', 'Cả hai hoàn toàn giống nhau về mặt kỹ thuật mạng.', 'MAC định tuyến Internet, IP định tuyến cục bộ.'], ans:1, h1:'Xem SGK trang 23.', h2:'MAC là vật lý, IP là logic (mạng).' },
+        { id:'2_6', lvl:'TH', type:'TH', q:'Bảng định tuyến tĩnh trong router có vai trò gì?', opts:['Lưu lịch sử duyệt web của tất cả người dùng.', 'Cấp mật khẩu Wi-Fi cho thiết bị di động mới.', 'Hướng dẫn nhóm địa chỉ IP gửi theo cổng nào.', 'Tự động dịch tên miền thành địa chỉ máy chủ.'], ans:2, h1:'Xem SGK trang 23.', h2:'Giống bảng chỉ dẫn giao thông.' },
+        { id:'2_7', lvl:'TH', type:'TH', q:'Trong định tuyến tĩnh, cổng mặc định của router dùng khi nào?', opts:['Khi đường truyền cáp quang gặp sự cố đứt gãy.', 'Khi gói dữ liệu có chứa tệp đính kèm quá lớn.', 'Khi thiết bị gửi yêu cầu mã hóa gói dữ liệu đó.', 'Khi địa chỉ đích không có trong bảng hướng dẫn.'], ans:3, h1:'Xem SGK trang 23.', h2:'Chuyển về cổng dự phòng khi không biết đường.' },
+        { id:'2_8', lvl:'VD', type:'VD1', q:'Dãy nhị phân "11000000 10101000 00000001 00000011" tương đương địa chỉ thập phân nào?', opts:['10.25.0.255.', '172.16.1.1.', '192.168.1.3.', '127.0.0.1.'], ans:2, h1:'Xem SGK trang 23, ví dụ.', h2:'Byte đầu: 128 + 64 = 192.' },
+        { id:'2_9', lvl:'VD', type:'VD1', q:'Vì sao máy tính gửi phải dùng IP thay vì MAC khi truyền ra Internet?', opts:['Vì MAC không hỗ trợ mã hóa bảo mật dữ liệu.', 'Vì máy gửi không biết địa chỉ MAC ở mạng khác.', 'Vì truyền bằng IP tiêu thụ ít điện năng máy tính.', 'Vì đường cáp quang không hỗ trợ định dạng MAC.'], ans:1, h1:'Xem SGK trang 23, phần Định tuyến.', h2:'MAC chỉ có tác dụng trong nội bộ LAN.' },
+        { id:'2_10', lvl:'VD', type:'VD2', q:'Giống như bưu phẩm từ Hà Nội đi Cần Thơ, nếu trạm trung chuyển không biết đường, gói tin sẽ ra sao?', opts:['Trả lại gói tin cho máy tính người gửi ban đầu.', 'Xóa bỏ gói tin để giảm tải cho hệ thống mạng.', 'Gửi bản sao gói tin đến tất cả các mạng lân cận.', 'Chuyển theo cổng mặc định để trạm khác dẫn tiếp.'], ans:3, h1:'Xem SGK trang 24, phân tích hình 4.1.', h2:'Áp dụng luật cổng mặc định.' }
+      ],
+      t3: [ // Trạm 3: Khôi phục truyền tin tin cậy (SGK 24-25)
+        { id:'3_1', lvl:'NB', type:'NB', q:'Tên tiếng Anh của giao thức mạng TCP là gì?', opts:['Transmission Control Protocol.', 'Transfer Communication Protocol.', 'Terminal Connection Process.', 'Transport Control Procedure.'], ans:0, h1:'Xem SGK trang 24, mục b.', h2:'Chữ T là Transmission.' },
+        { id:'3_2', lvl:'NB', type:'NB', q:'TCP cấp cho mỗi ứng dụng một số hiệu để phân biệt, gọi là gì?', opts:['Địa chỉ MAC phụ.', 'Cổng ứng dụng (Port).', 'Mã khóa mã hóa.', 'Địa chỉ IP nhánh.'], ans:1, h1:'Xem SGK trang 24, gạch đầu dòng 1.', h2:'Từ khóa có chữ Cổng.' },
+        { id:'3_3', lvl:'NB', type:'NB', q:'Giao thức nào quy định cách biểu diễn trang web trên Internet?', opts:['Giao thức truyền file FTP.', 'Giao thức nhận thư POP3.', 'Giao thức siêu văn bản HTTP.', 'Giao thức tên miền DNS.'], ans:2, h1:'Xem SGK trang 25.', h2:'Hypertext Transfer Protocol.' },
+        { id:'3_4', lvl:'NB', type:'NB', q:'Giao thức DNS cung cấp chức năng gì cho người dùng mạng?', opts:['Bảo mật kết nối mạng không dây trong gia đình.', 'Sử dụng tên bằng chữ thay thế cho địa chỉ IP.', 'Tăng gấp đôi băng thông mạng cho trình duyệt.', 'Chống virus xâm nhập vào máy tính cá nhân.'], ans:1, h1:'Xem SGK trang 25.', h2:'Dùng moet.edu.vn thay cho số.' },
+        { id:'3_5', lvl:'TH', type:'TH', q:'Sự khác biệt cốt lõi về vai trò giữa giao thức IP và TCP là gì?', opts:['IP kiểm tra bảo mật, TCP đảm nhiệm phần chia sẻ.', 'IP dùng cho máy tính, TCP dùng cho di động.', 'IP dẫn đường liên mạng, TCP bảo đảm tin cậy.', 'Cả hai giao thức có chức năng hoàn toàn giống nhau.'], ans:2, h1:'Xem SGK trang 24, đoạn mở đầu mục b.', h2:'IP là bưu tá, TCP là người gom hàng.' },
+        { id:'3_6', lvl:'TH', type:'TH', q:'Tại sao TCP yêu cầu các gói dữ liệu phải được đánh số thứ tự?', opts:['Để nơi nhận ráp lại đúng thứ tự do gói đến không đều.', 'Để mã hóa nội dung nhằm chống tin tặc đánh cắp.', 'Để đếm số lượng người đang sử dụng mạng cùng lúc.', 'Để giảm kích thước dung lượng của từng gói tin gửi đi.'], ans:0, h1:'Xem SGK trang 24, gạch đầu dòng 2.', h2:'Gói đi sau có thể đến trước do đi đường tắt.' },
+        { id:'3_7', lvl:'TH', type:'TH', q:'Cắt dữ liệu thành các gói nhỏ mang lại lợi thế gì cho đường truyền?', opts:['Ngăn chặn hoàn toàn sự cố đứt cáp quang mạng.', 'Giảm thiểu điện năng tiêu thụ cho phần cứng máy.', 'Cho phép nhiều cuộc truyền xen kẽ, tận dụng cáp.', 'Làm cho máy tính không cần sử dụng đến card mạng.'], ans:2, h1:'Xem SGK trang 25, đoạn đầu.', h2:'Nhiều xe nhỏ đi cùng lúc tốt hơn 1 xe siêu lớn.' },
+        { id:'3_8', lvl:'VD', type:'VD1', q:'Đang tải tệp và xem phim cùng lúc, dữ liệu không bị trộn lẫn nhờ cơ chế nào?', opts:['Hệ điều hành sử dụng hai đường truyền cáp độc lập.', 'Giao thức IP cấp phát hai địa chỉ mạng khác nhau.', 'Router phân chia khung giờ hoạt động luân phiên.', 'TCP gán cổng ứng dụng khác nhau cho mỗi phần mềm.'], ans:3, h1:'Xem SGK trang 24, mục b.', h2:'Nhờ số hiệu cổng.' },
+        { id:'3_9', lvl:'VD', type:'VD1', q:'Nếu một gói tin bị thất lạc trên mạng, TCP xử lý như thế nào?', opts:['Bỏ qua gói đó và chấp nhận tệp tin bị thiếu hụt.', 'Dùng cơ chế xác nhận để nơi gửi biết và gửi lại gói đó.', 'Dùng thuật toán AI để đoán nội dung bị thiếu.', 'Ngắt mạng lập tức để bảo vệ toàn hệ thống mạng.'], ans:1, h1:'Xem SGK trang 24, gạch đầu dòng 3.', h2:'Có một cơ chế báo nhận tin cậy.' },
+        { id:'3_10', lvl:'VD', type:'VD2', q:'Lệnh ping dùng giao thức ICMP gửi yêu cầu để thực hiện việc gì? (Có NV Ping ở dưới)', opts:['Kiểm tra máy tính có kết nối thông suốt với máy khác không.', 'Cài đặt phần mềm chống mã độc từ xa vào thiết bị đích.', 'Xóa các tệp tin tạm thời gây đầy bộ nhớ trên hệ thống.', 'Khởi động lại hệ điều hành của một thiết bị trong mạng LAN.'], ans:0, h1:'Xem SGK trang 25, phần Vận dụng.', h2:'Kiểm tra mạng.' }
+      ],
+      final: [ // Trạm cuối: Không dùng cho quiz nữa, thay bằng UI riêng.
+      ]
+    };
+
+    /* Hàm xáo trộn đáp án chống đoán vị trí */
+    function shuffleOptions(q) {
+      if(q.type === 'VD2') return; // Không trộn Đúng/Sai
+      let arr = q.opts.map((opt, i) => ({ opt, idx: i }));
+      for(let i = arr.length - 1; i > 0; i--){
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      q.opts = arr.map(a => a.opt);
+      q.ans = arr.findIndex(a => a.idx === q.ans);
+    }
+
+    /* Khởi tạo xáo trộn */
+    ['t1','t2','t3'].forEach(k => { DB[k].forEach(q => shuffleOptions(q)); });
+
+    /* ==================================================
+       03. AUDIO HỆ THỐNG
+       ================================================== */
+    let audioCtx = null;
+    function initAudio() {
+      if(!audioCtx) {
+        let AC = window.AudioContext || window.webkitAudioContext;
+        if(AC) audioCtx = new AC();
+      }
+      if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
+    }
+
+    function playTone(f, d, t='sine', v=0.05) {
+      if(!audioCtx || !state.sound) return;
+      try{
+        let osc=audioCtx.createOscillator(), gain=audioCtx.createGain();
+        osc.type=t; osc.frequency.value=f; gain.gain.value=v;
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime+d);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime+d);
+      }catch(e){}
+    }
+    
+    function sndClick() { playTone(500, 0.05, 'triangle'); }
+    function sndCor() { playTone(523, 0.1); setTimeout(()=>playTone(659, 0.15), 80); }
+    function sndWr() { playTone(250, 0.2, 'sawtooth'); }
+    function sndWin() { [440, 554, 659, 880].forEach((f,i)=>setTimeout(()=>playTone(f,0.3), i*100)); }
+
+    /* ==================================================
+       04. QUẢN LÝ GAME & CHUỘT
+       ================================================== */
+    let state = {
+      name: '', className: '', studentId: '', sound: true, status: 'ready',
+      t1:0, t2:0, t3:0, sFin:0, score:0, streak:0,
+      stt: 0, unlocked: [1], qList: [], qIdx: 0,
+      startTime: null, endTime: null, timerId: null, elapsedMs: 0,
+      resp: {}, w15:false, w5:false, w1:false
+    };
+
+    function toggleSound() {
+      state.sound = !state.sound;
+      document.getElementById('btnToggleSound').innerText = state.sound ? "🔊 Bật Âm" : "🔇 Tắt Âm";
+      initAudio();
+    }
+
+    function switchScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    function startGame(e) {
+      if(e) e.preventDefault();
+      let n = document.getElementById('inpName').value.trim();
+      let c = document.getElementById('inpClass').value.trim();
+      if(!n || !c) return alert("Nhập đủ Họ Tên và Lớp!");
+      
+      state.name = n; state.className = c;
+      document.getElementById('hudName').innerText = n;
+      
+      ['t1','t2','t3'].forEach(k => { DB[k].forEach(q => state.resp[q.id]={ p:false, pt:0, h:0, r:0 }); });
+      
+      state.status = 'playing';
+      state.startTime = Date.now();
+      state.endTime = state.startTime + TIME_LIMIT;
+      state.timerId = setInterval(updateTimer, 250);
+      
+      updateMap();
+      switchScreen('screen-map');
+      initAudio(); sndClick();
+    }
+
+    /* ĐỒNG HỒ 30 PHÚT CHUẨN XÁC */
+    function updateTimer() {
+      if(state.status !== 'playing') return;
+      let now = Date.now();
+      let remain = state.endTime - now;
+      state.elapsedMs = now - state.startTime;
+
+      if(remain <= 0) {
+        clearInterval(state.timerId);
+        remain = 0;
+        forceSubmit();
+      }
+
+      let sec = Math.ceil(remain/1000);
+      let m = Math.floor(sec/60).toString().padStart(2,'0');
+      let s = (sec%60).toString().padStart(2,'0');
+      let txt = `${m}:${s}`;
+      document.getElementById('mainTimer').innerText = txt;
+      document.getElementById('qTimer').innerText = txt;
+
+      let b1 = document.getElementById('mainTimer');
+      let b2 = document.getElementById('qTimer');
+      
+      if(sec <= 60) { b1.className='timer danger'; b2.className='timer danger'; }
+      else if(sec <= 300) { b1.className='timer warning'; b2.className='timer warning'; }
+      else { b1.className='timer'; b2.className='timer'; }
+    }
+
+    function forceSubmit() {
+      state.status = 'timeout';
+      alert("⏱ Hết 30 phút! Hệ thống đang tự động nộp bài.");
+      calculateFinal();
+    }
+
+    /* BẢN ĐỒ */
+    function updateMap() {
+      for(let i=1; i<=3; i++) {
+        let n = document.getElementById(`node-${i}`);
+        if(state.unlocked.includes(i)) {
+          n.className = 'node unlocked';
+          if(DB['t'+i].every(q=>state.resp[q.id].p)) n.className = 'node unlocked completed';
+        } else n.className = 'node';
+      }
+      document.getElementById('node-4').className = state.unlocked.includes(4) ? 'node unlocked' : 'node';
+      
+      let tot = 0; for(let k in state.resp) tot += state.resp[k].pt;
+      document.getElementById('hudScore').innerText = tot.toFixed(2);
+    }
+
+    function enterStation(num) {
+      if(!state.unlocked.includes(num) || state.status!=='playing') return;
+      state.stt = num;
+      let pending = DB['t'+num].filter(q => !state.resp[q.id].p);
+      if(pending.length===0) return alert("Trạm này đã xong!");
+      
+      if(pending.length < 10) pending.forEach(q => state.resp[q.id].r++); // Tính làm lại
+      
+      state.qList = pending; state.qIdx = 0;
+      switchScreen('screen-question');
+      renderQuestion();
+    }
+
+    /* HIỂN THỊ CÂU HỎI */
+    let curSel = null;
+    function renderQuestion() {
+      let q = state.qList[state.qIdx];
+      let r = state.resp[q.id];
+      curSel = null;
+      
+      document.getElementById('qStationTitle').innerText = `TRẠM ${state.stt}`;
+      document.getElementById('qIndex').innerText = `${state.qIdx+1}/${state.qList.length}`;
+      let basePt = PT[q.type];
+      document.getElementById('qLevel').innerText = `${q.lvl} (${basePt}đ)`;
+      
+      let maxP = basePt;
+      if(r.r>0 || r.h==2) maxP *= 0.4; else if(r.h==1) maxP *= 0.7;
+      document.getElementById('qMaxPt').innerText = maxP.toFixed(2);
+      
+      document.getElementById('qText').innerText = q.q;
+      
+      // Render Options
+      let html = '';
+      if(q.type !== 'VD2') {
+        q.opts.forEach((o, i) => {
+          html += `<div class="opt-card" id="opt-${i}" onclick="selOpt(${i})">
+            <span class="opt-label">${['A','B','C','D'][i]}</span> <span>${o}</span>
+          </div>`;
+        });
+      }
+      document.getElementById('qOptions').innerHTML = html;
+      
+      document.getElementById('pingTaskBox').style.display = (q.type==='VD2') ? 'block' : 'none';
+      
+      document.getElementById('hintBox').style.display = 'none';
+      document.getElementById('feedbackBox').style.display = 'none';
+      document.getElementById('btnConfirm').disabled = true;
+      document.getElementById('btnConfirm').style.display = 'inline-block';
+      document.getElementById('btnNext').style.display = 'none';
+      
+      let bh = document.getElementById('btnHint');
+      bh.style.display = r.h < 2 ? 'inline-block' : 'none';
+      bh.innerText = r.h==0 ? "CẦN TRỢ GIÚP?" : "GỢI Ý 2 (CÒN 40%)";
+      if(r.h > 0) {
+        document.getElementById('hintBox').style.display = 'block';
+        document.getElementById('hintBox').innerHTML = `💡 ${q.h1}` + (r.h==2 ? `<br><br>🔎 ${q.h2}` : '');
+      }
+    }
+
+    function selOpt(i) {
+      if(document.getElementById('btnConfirm').style.display === 'none') return;
+      curSel = i;
+      document.querySelectorAll('.opt-card').forEach(c => c.classList.remove('selected'));
+      document.getElementById(`opt-${i}`).classList.add('selected');
+      document.getElementById('btnConfirm').disabled = false;
+    }
+
+    function enablePingConfirm() {
+      if(document.getElementById('chkPing').checked) document.getElementById('btnConfirm').disabled = false;
+      else document.getElementById('btnConfirm').disabled = true;
+    }
+
+    function useHint() {
+      let r = state.resp[state.qList[state.qIdx].id];
+      if(r.h==0 && confirm("Gợi ý 1 giảm điểm còn 70%. Đồng ý?")) r.h=1;
+      else if(r.h==1 && confirm("Gợi ý 2 giảm điểm còn 40%. Đồng ý?")) r.h=2;
+      renderQuestion();
+    }
+
+    function confirmAnswer() {
+      let q = state.qList[state.qIdx];
+      let r = state.resp[q.id];
+      
+      let isCor = false;
+      if(q.type === 'VD2') {
+        isCor = document.getElementById('chkPing').checked;
+      } else {
+        isCor = (curSel === q.ans);
+      }
+      
+      document.getElementById('btnConfirm').style.display = 'none';
+      document.getElementById('btnHint').style.display = 'none';
+      document.getElementById('btnNext').style.display = 'inline-block';
+      
+      let fb = document.getElementById('feedbackBox');
+      fb.style.display = 'block';
+      
+      if(isCor) {
+        r.p = true;
+        let pt = PT[q.type];
+        if(r.r>0 || r.h==2) pt *= 0.4; else if(r.h==1) pt *= 0.7;
+        r.pt = pt;
+        fb.className = 'feedback-box correct';
+        document.getElementById('fbTitle').innerText = "✓ CHÍNH XÁC";
+        document.getElementById('fbText').innerText = q.type==='VD2' ? "Đã ghi nhận minh chứng thực hành." : `Lời giải: ${q.h1} ${q.h2}`;
+        sndCor();
+      } else {
+        r.pt = 0; r.p = false;
+        fb.className = 'feedback-box incorrect';
+        document.getElementById('fbTitle').innerText = "✗ CHƯA ĐÚNG";
+        document.getElementById('fbText').innerText = `Đáp án đúng là ${['A','B','C','D'][q.ans]}. Hãy ôn lại nhé!`;
+        sndWr();
+      }
+      
+      if(q.type !== 'VD2') {
+        document.querySelectorAll('.opt-card').forEach((c, i) => {
+          c.classList.add('disabled');
+          if(i === q.ans) c.classList.add('correct');
+          else if(i === curSel && !isCor) c.classList.add('wrong');
+        });
+      }
+    }
+
+    function nextQuestion() {
+      state.qIdx++;
+      if(state.qIdx < state.qList.length) renderQuestion();
+      else checkStation();
+    }
+
+    function checkStation() {
+      let list = DB['t'+state.stt];
+      let cor = 0, vdCor = 0;
+      list.forEach(q => { if(state.resp[q.id].p) { cor++; if(q.lvl.includes('VD')) vdCor++; } });
+      
+      if(cor >= 7 && vdCor >= 1) {
+        alert("Chúc mừng! Đã vượt trạm.");
+        if(state.stt<3 && !state.unlocked.includes(state.stt+1)) state.unlocked.push(state.stt+1);
+        else if(state.stt==3 && !state.unlocked.includes(4)) state.unlocked.push(4);
+      } else {
+        alert(`Chưa đủ điểm qua trạm (Đúng ${cor}/10, cần >=7 và 1 câu Vận dụng). Hãy làm lại câu sai.`);
+      }
+      updateMap();
+      switchScreen('screen-map');
+    }
+
+    /* ==================================================
+       MẬT MÃ CUỘC SỐNG (TRẠM 4 - KÉT SẮT)
+       ================================================== */
+    let cluesFound = 0;
+    function enterFinal() {
+      if(!state.unlocked.includes(4) || state.status!=='playing') return;
+      switchScreen('screen-final');
+      document.getElementById('storyPhase').style.display = 'block';
+      document.getElementById('safePhase').style.display = 'none';
+      document.getElementById('schemaPhase').style.display = 'none';
+      document.getElementById('finalMessagePhase').style.display = 'none';
+    }
+
+    function collectClue(i, el) {
+      if(el.classList.contains('found')) return;
+      sndClick();
+      el.classList.add('found');
+      let msgs = [
+        "Phát hiện hành vi: Ngắt lời gây đứt đoạn giao tiếp.",
+        "Phát hiện hành vi: Tự ý sửa đổi không đồng bộ.",
+        "Phát hiện hành vi: Chặn quyền truy cập phát biểu.",
+        "Phát hiện hành vi: Đề xuất quy tắc luân phiên."
+      ];
+      document.getElementById('clueFb').innerText = msgs[i];
+      cluesFound++;
+      if(cluesFound === 4) {
+        setTimeout(() => {
+          document.getElementById('storyPhase').style.display = 'none';
+          document.getElementById('safePhase').style.display = 'block';
+          sndWin();
+        }, 1500);
+      }
+    }
+
+    let safeRetries = 0;
+    function checkSafeKeyword() {
+      let val = document.getElementById('inpSafeKeyword').value.trim().toLowerCase();
+      let normal = val.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '');
+      
+      if(normal === 'tontrong') {
+        sndCor();
+        state.sFin += (safeRetries===0 ? 8 : 4);
+        document.getElementById('safePhase').style.display = 'none';
+        document.getElementById('schemaPhase').style.display = 'block';
+      } else {
+        sndWr();
+        safeRetries++;
+        document.getElementById('safeFb').innerText = "Két rung nhẹ... Từ khóa chưa đúng. Gợi ý: Gồm 2 tiếng, bắt đầu bằng T. Việc công nhận quyền của người khác gọi là gì?";
+      }
+    }
+
+    let selectedSchemaCard = null;
+    let schemaSlots = { 0: null, 1: null };
+    
+    function selectCard(idx, txt) {
+      sndClick();
+      document.querySelectorAll('.schema-item').forEach(c => c.style.borderColor = 'var(--secondary)');
+      document.getElementById(`card${idx}`).style.borderColor = 'var(--primary)';
+      selectedSchemaCard = { idx, txt };
+    }
+
+    function selectSlot(i) {
+      if(!selectedSchemaCard) return;
+      sndClick();
+      document.getElementById(`slot${i}`).innerText = selectedSchemaCard.txt;
+      document.getElementById(`slot${i}`).classList.add('filled');
+      schemaSlots[i] = selectedSchemaCard.idx;
+      selectedSchemaCard = null;
+      document.querySelectorAll('.schema-item').forEach(c => c.style.borderColor = 'var(--secondary)');
+    }
+
+    function checkSchema() {
+      if(schemaSlots[0] === 0 && schemaSlots[1] === 1) {
+        sndWin();
+        state.sFin += 12; // 4 đ sơ đồ + 8đ tự động kiến tạo
+        document.getElementById('schemaPhase').style.display = 'none';
+        document.getElementById('finalMessagePhase').style.display = 'block';
+      } else {
+        sndWr();
+        alert("Sơ đồ chưa hợp lý. Mạng máy tính cần GIAO THỨC, con người cần TÔN TRỌNG.");
+      }
+    }
+
+    function endGame() {
+      calculateFinal();
+    }
+
+    /* KẾT QUẢ VÀ GỬI GOOGLE SHEETS */
+    function calculateFinal() {
+      clearInterval(state.timerId);
+      state.status = 'completed';
+      
+      let sT1=0, sT2=0, sT3=0;
+      let cNoH=0, cH=0, h1C=0, h2C=0, ret=0;
+      let flawless = true;
+      
+      const cStat = (arr) => {
+        arr.forEach(q => {
+          let r = state.resp[q.id];
+          if(r.h>0||r.r>0) flawless=false;
+          h1C += (r.h>=1?1:0); h2C += (r.h==2?1:0); ret += r.r;
+          if(r.p) { if(r.h==0 && r.r==0) cNoH++; else cH++; }
+        });
+      };
+      
+      cStat(DB.t1); sT1 = DB.t1.reduce((s,q)=>s+state.resp[q.id].pt,0);
+      cStat(DB.t2); sT2 = DB.t2.reduce((s,q)=>s+state.resp[q.id].pt,0);
+      cStat(DB.t3); sT3 = DB.t3.reduce((s,q)=>s+state.resp[q.id].pt,0);
+      
+      let cont = sT1+sT2+sT3+state.sFin;
+      let bonus = 0;
+      let elM = state.elapsedMs / 60000;
+      if(flawless && state.unlocked.includes(4) && state.sFin==20) {
+        if(elM<=20) bonus=5; else if(elM<=25) bonus=3; else if(elM<30) bonus=1;
+      }
+      
+      let total = cont + bonus;
+      
+      switchScreen('screen-result');
+      document.getElementById('resName').innerText = state.name;
+      document.getElementById('resTotalScore').innerText = total.toFixed(2);
+      
+      let m=Math.floor(state.elapsedMs/60000), s=Math.floor((state.elapsedMs%60000)/1000);
+      document.getElementById('resTime').innerText = `${m} phút ${s} giây`;
+      
+      document.getElementById('rT1').innerText = sT1.toFixed(2);
+      document.getElementById('rT2').innerText = sT2.toFixed(2);
+      document.getElementById('rT3').innerText = sT3.toFixed(2);
+      document.getElementById('rFinal').innerText = state.sFin;
+      document.getElementById('rTotal').innerText = total.toFixed(2);
+      document.getElementById('rBonus').innerText = bonus;
+      
+      document.getElementById('rNoHint').innerText = cNoH;
+      document.getElementById('rHint').innerText = cH;
+      document.getElementById('rRetry').innerText = ret;
+
+      // Thống kê NB TH VD
+      let rNb=0, tNb=12, rTh=0, tTh=9, rVd=0, tVd=9; // 3 trạm * 4/3/3
+      ['t1','t2','t3'].forEach(t => {
+        DB[t].forEach(q => {
+          if(q.lvl==='NB' && state.resp[q.id].p) rNb++;
+          if(q.lvl==='TH' && state.resp[q.id].p) rTh++;
+          if(q.lvl.includes('VD') && state.resp[q.id].p) rVd++;
+        });
+      });
+      document.getElementById('resNb').innerText = `${rNb}/${tNb}`;
+      document.getElementById('resTh').innerText = `${rTh}/${tTh}`;
+      document.getElementById('resVd').innerText = `${rVd}/${tVd}`;
+
+      let rnk="", cmt="";
+      if(total>=90){rnk="🌟 RẤT VỮNG"; cmt="Giữ nhịp ôn tập và dành thời gian kiểm tra lại lỗi nhỏ.";}
+      else if(total>=70){rnk="🌿 KHÁ VỮNG"; cmt="Phần lớn kiến thức đã ổn. Xem lại vài điểm còn nhầm.";}
+      else if(total>=50){rnk="📘 ĐANG CỦNG CỐ"; cmt="Phiên ôn tập đã giúp xác định những phần cần xem lại.";}
+      else{rnk="🧩 ÔN LẠI THEO CHỦ ĐỀ"; cmt="Hãy chia nhỏ nội dung và ôn lại từng phần.";}
+      
+      document.getElementById('resRank').innerText = rnk;
+      document.getElementById('resComment').innerText = cmt;
+      document.getElementById('resStatus').innerText = (state.elapsedMs >= TIME_LIMIT) ? "Hết thời gian" : "Hoàn thành";
+      
+      if(!flawless) document.getElementById('btnReview').style.display='inline-block';
+
+      // Send to Sheets
+      if(SCRIPT_URL !== "YOUR_WEB_APP_URL_HERE") {
+        fetch(SCRIPT_URL, {
+          method: 'POST', headers: {'Content-Type':'text/plain'},
+          body: JSON.stringify({
+            sessionId: "SS_"+Date.now(), attempt: 1, name: state.name, className: state.className,
+            startTime: state.startTime, endTime: state.endTime, duration: state.elapsedMs,
+            correctNoHint: cNoH, correctWithHint: cH, hint1Count: h1C, hint2Count: h2C, retries: ret,
+            scoreT1: sT1, scoreT2: sT2, scoreT3: sT3, scoreFinal: state.sFin, contentScore: cont, timeBonus: bonus, totalScore: total,
+            status: "Hoàn thành", pingStatus: document.getElementById('chkPing').checked ? "Đã xác nhận" : "Chưa xác nhận",
+            finalKeyword: "TÔN TRỌNG", details: state.resp
+          })
+        }).then(r=>r.json()).then(d=>{
+          document.getElementById('syncStatus').innerText = "✓ Đã đồng bộ điểm lên hệ thống.";
+          document.getElementById('syncStatus').style.color="var(--success)";
+        }).catch(e=>{
+          document.getElementById('syncStatus').innerText = "⚠ Lỗi mạng: Chưa thể đồng bộ điểm.";
+          document.getElementById('syncStatus').style.color="var(--danger)";
+        });
+      } else {
+        document.getElementById('syncStatus').innerText = "Bản Demo Ngoại Tuyến - Không lưu kết quả.";
+      }
+      sndWin();
+    }
+
+    function startReview() {
+      let wrong = [];
+      ['t1','t2','t3'].forEach(t => { DB[t].forEach(q => { if(!state.resp[q.id].p) wrong.push(q); }); });
+      if(wrong.length===0) return;
+      state.qList = wrong; state.qIdx = 0; state.stt = "REVIEW";
+      document.getElementById('qTimer').innerText = "REVIEW MODE";
+      switchScreen('screen-question');
+      renderQuestion();
+    }
+
+  </script>
+</body>
+</html>
